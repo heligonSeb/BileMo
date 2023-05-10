@@ -18,9 +18,13 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 class UserController extends AbstractController
 {
     #[Route('/api/users', name: 'client_users', methods: ['GET'])]
-    public function getUserFromClient(UserRepository $userRepository, SerializerInterface $serializer): JsonResponse
+    public function getUserFromClient(UserRepository $userRepository, SerializerInterface $serializer, Request $request): JsonResponse
     { 
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 4);
+
         $usersList = $userRepository->findby(['Client' => $this->getUser()]);
+        $usersList = $userRepository->findbyWithPagination($page, $limit, $this->getUser());
 
         $jsonUsersList = $serializer->serialize($usersList, 'json', ['groups' => 'getUsers']);
         return new JsonResponse($jsonUsersList, Response::HTTP_OK, [], true);
