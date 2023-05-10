@@ -47,6 +47,9 @@
             "migrations/.gitignore"
         ]
     },
+    "jms/serializer-bundle": {
+        "version": "5.2.1"
+    },
     "lexik/jwt-authentication-bundle": {
         "version": "2.18",
         "recipe": {
@@ -159,5 +162,8 @@
         "files": [
             "config/packages/validator.yaml"
         ]
+    },
+    "willdurand/hateoas-bundle": {
+        "version": "2.5.0"
     }
 }
