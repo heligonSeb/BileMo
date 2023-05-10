@@ -14,33 +14,51 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class UserController extends AbstractController
 {
     #[Route('/api/users', name: 'client_users', methods: ['GET'])]
-    public function getUserFromClient(UserRepository $userRepository, SerializerInterface $serializer, Request $request): JsonResponse
+    public function getUserFromClient(UserRepository $userRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cache): JsonResponse
     { 
         $page = $request->get('page', 1);
         $limit = $request->get('limit', 4);
 
-        $usersList = $userRepository->findby(['Client' => $this->getUser()]);
-        $usersList = $userRepository->findbyWithPagination($page, $limit, $this->getUser());
+        $idCache = 'getUserFromClient_' . $page . '_' . $limit;
 
-        $jsonUsersList = $serializer->serialize($usersList, 'json', ['groups' => 'getUsers']);
+        $jsonUsersList = $cache->get($idCache, function (ItemInterface $item) use ($userRepository, $page, $limit, $serializer) {
+            $item->tag('usersListCache');
+
+            $usersList = $userRepository->findbyWithPagination($page, $limit, $this->getUser());
+
+            dd($usersList);
+
+            return $serializer->serialize($usersList, 'json', ['groups' => 'getUsers']);
+        });
+
         return new JsonResponse($jsonUsersList, Response::HTTP_OK, [], true);
     }
 
     #[Route('/api/users/{id}', name: 'infos_user', methods: ['GET'])]
-    public function getInfosUser(User $user, SerializerInterface $serializer): JsonResponse
+    public function getInfosUser(User $user, SerializerInterface $serializer, TagAwareCacheInterface $cache): JsonResponse
     {
-        $jsonUser = $serializer->serialize($user, 'json', ['groups' => 'getUsers']);
+        $idCache = 'getInfosUser_' . $user->getId();
+
+        $jsonUser = $cache->get($idCache, function (ItemInterface $item) use ($user, $serializer) {
+            $item->tag('userCache');
+
+            return $serializer->serialize($user, 'json', ['groups' => 'getUsers']);
+        });
 
         return new JsonResponse($jsonUser, Response::HTTP_OK, [], true);
     }
 
     #[Route('/api/users/{id}', name: 'update_user', methods: ['PUT'])]
-    public function updateUser(Request $request, SerializerInterface $serializer,User $currentUser, EntityManagerInterface $entityManager): JsonResponse
+    public function updateUser(Request $request, SerializerInterface $serializer,User $currentUser, EntityManagerInterface $entityManager, TagAwareCacheInterface $cache): JsonResponse
     {
+        $cache->invalidateTags(['userCache', 'usersListCache']);
+
         $updateUser = $serializer->deserialize($request->getContent(), User::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentUser]);
 
         $updateUser->setClient($this->getUser());
@@ -52,8 +70,10 @@ class UserController extends AbstractController
     }
 
     #[Route('/api/users/{id}', name: 'delete_user', methods: ['DELETE'])]
-    public function deleteUser(User $user, EntityManagerInterface $entityManager): JsonResponse
+    public function deleteUser(User $user, EntityManagerInterface $entityManager, TagAwareCacheInterface $cache): JsonResponse
     {
+        $cache->invalidateTags(['userCache', 'usersListCache']);
+
         $entityManager->remove($user);
         $entityManager->flush();
 
@@ -61,23 +81,32 @@ class UserController extends AbstractController
     }
 
     #[Route('/api/users', name: 'create_user', methods: ['POST'])]
-    public function createUser(Request $request, SerializerInterface $serializer, EntityManagerInterface $entityManager, UrlGeneratorInterface $urlGenerator, ValidatorInterface $validator): JsonResponse
-    {
+    public function createUser(Request $request, SerializerInterface $serializer, EntityManagerInterface $entityManager, UrlGeneratorInterface $urlGenerator, ValidatorInterface $validator, TagAwareCacheInterface $cache): JsonResponse
+    {    
+        
         $user = $serializer->deserialize($request->getContent(), User::class, 'json');
         $user->setClient($this->getUser());
-
+        
         /* check error */
         $errors = $validator->validate($user);
         if ($errors->count() > 0) {
             return new JsonResponse($serializer->serialize($errors, 'json'), Response::HTTP_BAD_REQUEST, [], true);
-
+            
             // throw new HttpException(JsonResponse::HTTP_BAD_REQUEST, "La requete est invalide");
         }
-
+        
         $entityManager->persist($user);
         $entityManager->flush();
+        
+        $cache->invalidateTags(['usersListCache']);
+        
+        $idCache = 'createUser_' . $user->getId();
 
-        $jsonUser = $serializer->serialize($user, 'json', ['groups' => 'getUsers']);
+        $jsonUser = $cache->get($idCache, function (ItemInterface $item) use ($user, $serializer) {
+            $item->tag('userCache');
+
+            return $serializer->serialize($user, 'json', ['groups' => 'getUsers']);
+        });
 
         $infosUser = $urlGenerator->generate('infos_user', ['id' => $user->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
