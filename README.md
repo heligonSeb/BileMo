@@ -32,11 +32,11 @@ symfony console doctrime:schema:update
 
 ### Ajout de donnée
 ```shell
-mysql -u root bilemo -p < sql/addData.sql
+php bin/console doctrine:fixtures:load
 ```
 ## Configuration du projet
 Pour configurer le projet il suffit de copier le fichier ".env" qui se trouve a la racine du projet et replacer les "ChangeMe" par vos informations. 
 Puis de renomer le fichier en ".env.local".
 
 ## Access a l'API DOC
-/api/doc
+http://127.0.0.1:8000/api/doc
