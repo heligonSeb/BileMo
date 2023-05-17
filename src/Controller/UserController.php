@@ -12,14 +12,48 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
-use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use JMS\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
+use Nelmio\ApiDocBundle\Annotation\Model;
+use OpenApi\Annotations as OA;
 
 class UserController extends AbstractController
 {
+    /**
+     * Cette méthode permet de récupérer la liste des utilisateurs lié au client connecté
+     * 
+     * @OA\Response(
+     *     response=200,
+     *     description="Retourne la liste des utilisateurs lié au client connecté",
+     *     @OA\JsonContent(
+     *        type="array",
+     *        @OA\Items(ref=@Model(type=User::class, groups={"getUsers"}))
+     *     )
+     * )
+     * @OA\Parameter(
+     *     name="page",
+     *     in="query",
+     *     description="La page que l'on veut récupérer",
+     *     @OA\Schema(type="int")
+     * )
+     *
+     * @OA\Parameter(
+     *     name="limit",
+     *     in="query",
+     *     description="Le nombre d'éléments que l'on veut récupérer",
+     *     @OA\Schema(type="int")
+     * )
+     * @OA\Tag(name="Users")
+     * 
+     * @param UserRepository $userRepository
+     * @param SerializerInterface $serializer
+     * @param Request $request
+     * @param TagAwareCacheInterface $cache
+     * 
+     * @return JsonResponse
+     */
     #[Route('/api/users', name: 'client_users', methods: ['GET'])]
     public function getUserFromClient(UserRepository $userRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cache): JsonResponse
     { 
@@ -29,8 +63,6 @@ class UserController extends AbstractController
         $idCache = 'getUserFromClient_' . $page . '_' . $limit;
 
         $jsonUsersList = $cache->get($idCache, function (ItemInterface $item) use ($userRepository, $page, $limit, $serializer) {
-            echo('ELEM NOT IN CACHE YET !\n');
-            
             $item->tag('usersListCache');
 
             $usersList = $userRepository->findbyWithPagination($page, $limit, $this->getUser());
@@ -43,9 +75,32 @@ class UserController extends AbstractController
         return new JsonResponse($jsonUsersList, Response::HTTP_OK, [], true);
     }
 
+    /**
+     * Cette méthode permet de récupérer un utilisateur lié au client connecté
+     * 
+     * @OA\Response(
+     *     response=200,
+     *     description="Retourne la liste d'un utilisateurs lié au client connecté",
+     *     @OA\JsonContent(
+     *        type="array",
+     *        @OA\Items(ref=@Model(type=User::class, groups={"getUsers"}))
+     *     )
+     * )
+     * @OA\Tag(name="Users")
+     * 
+     * @param User $user
+     * @param SerializerInterface $serializer
+     * @param TagAwareCacheInterface $cache
+     * 
+     * @return JsonResponse
+     */
     #[Route('/api/users/{id}', name: 'infos_user', methods: ['GET'])]
     public function getInfosUser(User $user, SerializerInterface $serializer, TagAwareCacheInterface $cache): JsonResponse
     {
+        if ($user->getClient() !== $this->getUser()) {
+            return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        }
+
         $idCache = 'getInfosUser_' . $user->getId();
 
         $jsonUser = $cache->get($idCache, function (ItemInterface $item) use ($user, $serializer) {
@@ -59,9 +114,27 @@ class UserController extends AbstractController
         return new JsonResponse($jsonUser, Response::HTTP_OK, [], true);
     }
 
+    /**
+     * Cette méthode permet de mettre à jour un utilisateur
+     * 
+     * @OA\Tag(name="Users")
+     * 
+     * @param Request $request
+     * @param SerializerInterface $serializer
+     * @param User $currentUser
+     * @param EntityManagerInterface $entityManager
+     * @param TagAwareCacheInterface $cache
+     * @param ValidatorInterface $validator
+     * 
+     * @return JsonResponse
+     */
     #[Route('/api/users/{id}', name: 'update_user', methods: ['PUT'])]
     public function updateUser(Request $request, SerializerInterface $serializer,User $currentUser, EntityManagerInterface $entityManager, TagAwareCacheInterface $cache, ValidatorInterface $validator): JsonResponse
     {
+        if ($currentUser->getClient() !== $this->getUser()) {
+            return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        }
+
         $newUser = $serializer->deserialize($request->getContent(), User::class, 'json');
 
         $currentUser->setFirstname($newUser->getFirstname());
@@ -74,8 +147,6 @@ class UserController extends AbstractController
         $errors = $validator->validate($currentUser);
         if ($errors->count() > 0) {
             return new JsonResponse($serializer->serialize($errors, 'json'), Response::HTTP_BAD_REQUEST, [], true);
-            
-            // throw new HttpException(JsonResponse::HTTP_BAD_REQUEST, "La requete est invalide");
         }
 
         $entityManager->persist($currentUser);
@@ -86,9 +157,24 @@ class UserController extends AbstractController
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
+    /**
+     * Cette méthode permet de supprimer un utilisateur
+     * 
+     * @OA\Tag(name="Users")
+     * 
+     * @param User $user
+     * @param EntityManagerInterface $entityManager
+     * @param TagAwareCacheInterface $cache
+     * 
+     * @return JsonResponse
+     */
     #[Route('/api/users/{id}', name: 'delete_user', methods: ['DELETE'])]
     public function deleteUser(User $user, EntityManagerInterface $entityManager, TagAwareCacheInterface $cache): JsonResponse
     {
+        if ($user->getClient() !== $this->getUser()) {
+            return new JsonResponse(null, Response::HTTP_NOT_FOUND);
+        }
+        
         $cache->invalidateTags(['userCache', 'usersListCache']);
 
         $entityManager->remove($user);
@@ -97,6 +183,48 @@ class UserController extends AbstractController
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
+    /**
+     * Cette méthode permet de créer un utilisateur
+     * 
+     * @OA\Response(
+     *     response=200,
+     *     description="Retourne l'utilisateurs lié au client connecté créé",
+     *     @OA\JsonContent(
+     *        type="array",
+     *        @OA\Items(ref=@Model(type=User::class, groups={"getUsers"}))
+     *     )
+     * )
+     * @OA\RequestBody(
+     *     @OA\MediaType(
+     *          mediaType="application/json",
+     *          @OA\Schema(
+     *              @OA\Property(
+     *                  property="firstname",
+     *                  type="string"
+     *              ),
+     *              @OA\Property(
+     *                  property="lastname",
+     *                  type="string"
+     *              ),  
+     *              @OA\Property(
+     *                  property="email",
+     *                  type="string"
+     *              ),
+     *          ),
+     *    )
+     * )
+     *
+     * @OA\Tag(name="Users")
+     * 
+     * @param Request $request
+     * @param SerializerInterface $serializer
+     * @param EntityManagerInterface $entityManager
+     * @param UrlGeneratorInterface $urlGenerator
+     * @param ValidatorInterface $validator
+     * @param TagAwareCacheInterface $cache
+     * 
+     * @return JsonResponse
+     */
     #[Route('/api/users', name: 'create_user', methods: ['POST'])]
     public function createUser(Request $request, SerializerInterface $serializer, EntityManagerInterface $entityManager, UrlGeneratorInterface $urlGenerator, ValidatorInterface $validator, TagAwareCacheInterface $cache): JsonResponse
     {    
