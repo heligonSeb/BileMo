@@ -41,7 +41,7 @@ class AppFixtures extends Fixture
         /** creation clients */
         $clientList = [];
 
-        // Creation client "normal"
+        /* Creation client "normal" */
         $client = new Client();
         $client->setEmail("user@bilemoapi.com");
         $client->setName('client');
@@ -51,7 +51,7 @@ class AppFixtures extends Fixture
 
         $clientList[] = $client;
         
-        // Création d'un client admin
+        /* Création d'un client admin */
         $clientAdmin = new Client();
         $clientAdmin->setEmail("admin@bilemoapi.com");
         $clientAdmin->setName('clientAdmin');

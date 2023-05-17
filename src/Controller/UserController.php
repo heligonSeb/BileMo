@@ -236,8 +236,6 @@ class UserController extends AbstractController
         $errors = $validator->validate($user);
         if ($errors->count() > 0) {
             return new JsonResponse($serializer->serialize($errors, 'json'), Response::HTTP_BAD_REQUEST, [], true);
-            
-            // throw new HttpException(JsonResponse::HTTP_BAD_REQUEST, "La requete est invalide");
         }
         
         $entityManager->persist($user);
