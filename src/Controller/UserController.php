@@ -117,6 +117,11 @@ class UserController extends AbstractController
     /**
      * Cette méthode permet de mettre à jour un utilisateur
      * 
+     * @OA\Response(
+     *     response=204,
+     *     description="",
+     * )
+     * 
      * @OA\RequestBody(
      *     @OA\MediaType(
      *          mediaType="application/json",
@@ -180,6 +185,11 @@ class UserController extends AbstractController
     /**
      * Cette méthode permet de supprimer un utilisateur
      * 
+     * @OA\Response(
+     *     response=204,
+     *     description="",
+     * )
+     * 
      * @OA\Tag(name="Users")
      * 
      * @param User $user
@@ -207,7 +217,7 @@ class UserController extends AbstractController
      * Cette méthode permet de créer un utilisateur
      * 
      * @OA\Response(
-     *     response=200,
+     *     response=201,
      *     description="Retourne l'utilisateurs lié au client connecté créé",
      *     @OA\JsonContent(
      *        type="array",
