@@ -80,7 +80,7 @@ class UserController extends AbstractController
      * 
      * @OA\Response(
      *     response=200,
-     *     description="Retourne la liste d'un utilisateurs lié au client connecté",
+     *     description="Retourne un utilisateurs lié au client connecté",
      *     @OA\JsonContent(
      *        type="array",
      *        @OA\Items(ref=@Model(type=User::class, groups={"getUsers"}))
@@ -117,6 +117,26 @@ class UserController extends AbstractController
     /**
      * Cette méthode permet de mettre à jour un utilisateur
      * 
+     * @OA\RequestBody(
+     *     @OA\MediaType(
+     *          mediaType="application/json",
+     *          @OA\Schema(
+     *              @OA\Property(
+     *                  property="firstname",
+     *                  type="string",
+     *              ),
+     *              @OA\Property(
+     *                  property="lastname",
+     *                  type="string",
+     *              ),  
+     *              @OA\Property(
+     *                  property="email",
+     *                  type="string",
+     *              ),
+     *          ),
+     *    )
+     * )
+     * 
      * @OA\Tag(name="Users")
      * 
      * @param Request $request
@@ -137,17 +157,17 @@ class UserController extends AbstractController
 
         $newUser = $serializer->deserialize($request->getContent(), User::class, 'json');
 
-        $currentUser->setFirstname($newUser->getFirstname());
-        $currentUser->setLastname($newUser->getLastname());
-        $currentUser->setEmail($newUser->getEmail());
-
-        $currentUser->setClient($this->getUser());
-
         /* check error */
-        $errors = $validator->validate($currentUser);
+        $errors = $validator->validate($newUser);
         if ($errors->count() > 0) {
             return new JsonResponse($serializer->serialize($errors, 'json'), Response::HTTP_BAD_REQUEST, [], true);
         }
+        
+        $currentUser->setFirstname($newUser->getFirstname());
+        $currentUser->setLastname($newUser->getLastname());
+        $currentUser->setEmail($newUser->getEmail());
+        
+        $currentUser->setClient($this->getUser());
 
         $entityManager->persist($currentUser);
         $entityManager->flush();
