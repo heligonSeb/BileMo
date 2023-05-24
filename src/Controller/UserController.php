@@ -168,12 +168,6 @@ class UserController extends AbstractController
         $currentUser->setEmail($newUser->getEmail());
         
         $currentUser->setClient($this->getUser());
-        
-        /* check error */
-        $errors = $validator->validate($currentUser);
-        if ($errors->count() > 0) {
-            return new JsonResponse($serializer->serialize($errors, 'json'), Response::HTTP_BAD_REQUEST, [], true);
-        }
 
         $entityManager->persist($currentUser);
         $entityManager->flush();
